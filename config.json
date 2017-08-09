@@ -1,0 +1,18 @@
+{
+    "miner":{
+        "bat_file":"start-supernova.bat"
+    },
+    "suprnova":{
+        "api_key":"322d98e7430c8db0b1bfc8c93c66453b9b602aaaf31e6ad55ccb071df6b5c87d",
+        "uid":167431992
+    },
+    "signatum":{
+        "wallet_address":"B5GWoN3jmFXkAQRWBUjrEQnE6ApQJgpyba"
+    },
+    "cryptopia":{
+        "coin_pair":"SIGT_BTC"},
+    "coinsph":{
+        "api_key":null,
+        "coin_pair":"BTC-PHP"
+    }
+}
