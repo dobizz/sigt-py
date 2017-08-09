@@ -2,11 +2,11 @@
 import os, thread, time
 from clint.textui import colored
 from datetime import datetime
-# import API's
-from signatumapi import *
-from suprnovaapi import *
-from cryptopiaapi import *
-from coinsphapi import *
+# import API functions
+from api.signatum import *
+from api.suprnova import *
+from api.cryptopia import *
+from api.coinsph import *
 
 # Variable declarations
 IS_ACTIVE = True
@@ -15,12 +15,130 @@ sigt_bal = 0.0
 last_trade_price = 0.0
 btc_value = 0.0
 php_value = 0.0
-block_height = 0
+php_rate = 0.0
 sigt_difficulty = 0.0
+block_height = 0
 
-# Function declarations
+#########################
+# Function declarations #
+#########################
+
+# Get current datetime and format
 def get_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# Thread for getting SIGT balance
+def t_getbalance(timeout):
+    # Shared variables with other threads
+    global sigt_bal
+
+    while True:
+        sigt_bal = sigt.getbalance()
+        time.sleep(timeout)
+
+# Thread for getting block height
+def t_getblockcount(timeout):
+    # Shared variables with other threads
+    global block_height
+    global sigt_difficulty
+
+    current_block = 0
+
+    while True:
+        block_height = sigt.getblockcount()
+        sigt_difficulty = sigt.getdifficulty()
+        if (block_height * sigt_difficulty > 0) and (current_block != block_height):
+            print colored.cyan("[%s] skunk block %d, diff %0.3f" % (get_timestamp(), block_height, sigt_difficulty))
+            current_block = block_height
+        time.sleep(timeout)
+
+# Threaf for getting PHP_BTC price
+def t_get_bidprice(timeout):
+    global php_rate
+
+    last_value = 0.0
+    show_prompt = True
+
+    while IS_ACTIVE:
+        try:
+            php_rate = cph.get_bidprice()
+            last_value = php_rate
+            show_prompt = True
+        except:
+            php_rate = last_value
+            if show_prompt:
+                print "Unable to get last trade data, using last known price"
+            show_prompt = False
+        time.sleep(timeout)
+
+# Thread for getting SIGT_BTC price
+def t_getlastprice(timeout):
+    # Shared variables with other threads
+    global last_trade_price
+
+    last_value = 0.0
+    show_prompt = True
+
+    while IS_ACTIVE:
+        try:
+            last_trade_price = cex.getlastprice()
+            last_value = last_trade_price
+            show_prompt = True
+        except:
+            last_trade_price = last_value
+            if show_prompt:
+                print "Unable to get last trade data, using last known price"
+            show_prompt = False
+        time.sleep(timeout)
+
+# Thread for displaying BTC stats
+def t_displaystats_btc(timeout):
+    # Shared variables with other threads
+    global btc_value
+    global last_trade_price
+
+    current_value = 0.0
+    while IS_ACTIVE:
+        btc_value = sigt_bal * last_trade_price
+        if (btc_value > 0) and (btc_value != current_value):
+            text = "[%s] Value[BTC]: %0.8f\tRate: %0.8f\tBTC/SIGT\t" % (get_timestamp(), btc_value, last_trade_price)
+            if (btc_value >= current_value):
+                print colored.green("%s%s" % (text, "(+)"))
+            else:
+                print colored.red("%s%s" % (text, "(-)"))
+            current_value = btc_value
+        else:
+            pass
+        time.sleep(timeout)
+
+# Thread for displaying PHP stats
+def t_displaystats_php(timeout):
+    # Shared variables with other threads
+    # global php_value
+    global btc_value
+    global last_trade_price
+    global php_rate
+
+    current_value = 0.0
+
+    while IS_ACTIVE:
+        php_value = btc_value * php_rate
+        php_sigt = php_rate * last_trade_price
+
+        if (php_value > 0) and (php_value != current_value):
+            text = "[%s] Value[PHP]: %0.2f\tRate: %0.2f\t\tPHP/SIGT\t" % (get_timestamp(), php_value, php_sigt)
+
+            if (php_value >= current_value):
+                print colored.green("%s%s" % (text, "(+)"))
+
+            else:
+                print colored.red("%s%s" % (text, "(-)"))
+            current_value = php_value
+
+        else:
+            pass
+        time.sleep(timeout)
+
 
 # Open config.json
 file_name = 'config.json'
@@ -41,8 +159,6 @@ except:
 
 print colored.white("[%s] Config files successfully loaded from %s" % (get_timestamp(), file_name))
 file_handle.close()
-
-
 
 # Create Objects
 
@@ -66,89 +182,31 @@ cex = Cryptopia(cex_coin_pair)
 cph_coin_pair = json_str['coinsph']['coin_pair']
 cph = CoinsPH()
 
-
-
-# Thread for getting SIGT balance
-def t_getbalance(t):  
-    global sigt_bal
-    while True:
-        sigt_bal = sigt.getbalance()
-        time.sleep(t)
-
-# Thread for getting block height
-def t_getblockcount(t):  
-    global block_height
-    global sigt_difficulty
-    current_block = 0
-    while True:
-        block_height = sigt.getblockcount()
-        sigt_difficulty = sigt.getdifficulty()
-        if (block_height * sigt_difficulty > 0) and (current_block != block_height):
-            print colored.cyan("[%s] skunk block %d, diff %0.3f" % (get_timestamp(), block_height, sigt_difficulty))
-            current_block = block_height
-        time.sleep(t)
-
-# Thread for getting SIGT_BTC price
-def t_getlastprice(t):
-    global last_trade_price
-    last_value = last_trade_price
-    show_prompt = True
-    while True:
-        try:
-            last_trade_price = cex.getlastprice()
-            show_prompt = True
-        except:
-            last_trade_price = last_value
-            if show_prompt:
-                print "Unable to get last trade data, using last known price"
-            show_prompt = False
-        time.sleep(t)
-
-# Thread for displaying BTC stats
-def t_displaystats_btc(t):
-    global btc_value
-    current_value = 0.0
-    while True:
-        btc_value = sigt_bal * last_trade_price
-        if (btc_value > 0) and (btc_value != current_value):
-            if (btc_value >= current_value):
-                print colored.green("[%s] Value[BTC]: %0.8f" % (get_timestamp(), btc_value))
-            else:
-                print colored.red("[%s] Value[BTC]: %0.8f" % (get_timestamp(), btc_value))
-            current_value = btc_value
-        else:
-            pass
-        time.sleep(t)
-
-# Thread for displaying PHP stats
-def t_displaystats_php(t):
-    global php_value
-    global btc_value
-    current_value = 0.0
-    while True:
-        php_value = btc_value * cph.get_bidprice()
-        if (php_value > 0) and (php_value != current_value):
-            if (php_value >= current_value):
-                print colored.green("[%s] Value[PHP]: %0.2f" % (get_timestamp(), php_value))
-            else:
-                print colored.red("[%s] Value[PHP]: %0.2f" % (get_timestamp(), php_value))
-            current_value = php_value
-        else:
-            pass
-        time.sleep(t)
-
 # Try to run threads
 try:
+    # Call thread for getting Signatum balance
     tmon = 0
-    thread.start_new_thread(t_getbalance, (1.0,))
+    thread.start_new_thread(t_getbalance, (60.0,))
+
+    # Call thread for getting last trade price
     tmon = 1
     thread.start_new_thread(t_getlastprice, (1.0,))
+
+    # Call thread for getting current block height and difficulty
     tmon = 2
     thread.start_new_thread(t_getblockcount, (0.5,))
+
+    # Call thread for getting current PHP bid price, 9-second price validity
     tmon = 3
-    thread.start_new_thread(t_displaystats_btc, (1.0,))
+    thread.start_new_thread(t_get_bidprice, (9.0,))
+
+    # Call thread for displaying BTC stats, t=1.0s
     tmon = 4
-    thread.start_new_thread(t_displaystats_php, (1.0,))
+    thread.start_new_thread(t_displaystats_btc, (1.0,))
+
+    # Call thred for displaying PHP stats, t=1.01s to avoid overlapping with BTC stats
+    tmon = 5
+    thread.start_new_thread(t_displaystats_php, (1.01,))
 
 # Exception handling
 except:
