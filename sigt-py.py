@@ -1,7 +1,8 @@
 #!/usr/bin/python
-import os, thread, time
+import os, time, thread
 from clint.textui import colored
 from datetime import datetime
+from thread import *
 # import API functions
 from api.signatum import *
 from api.suprnova import *
@@ -19,6 +20,9 @@ php_rate = 0.0
 sigt_difficulty = 0.0
 block_height = 0
 
+# Thread variables
+lock = allocate_lock()
+
 #########################
 # Function declarations #
 #########################
@@ -31,9 +35,13 @@ def get_timestamp():
 def t_getbalance(timeout):
     # Shared variables with other threads
     global sigt_bal
-
+    last_value = 0.0
     while True:
         sigt_bal = sigt.getbalance()
+        if sigt_bal >= 0:
+            last_value = sigt_bal
+        if sigt_bal < 0:
+            sigt_bal = last_value
         time.sleep(timeout)
 
 # Thread for getting block height
@@ -48,7 +56,9 @@ def t_getblockcount(timeout):
         block_height = sigt.getblockcount()
         sigt_difficulty = sigt.getdifficulty()
         if (block_height * sigt_difficulty > 0) and (current_block != block_height):
+            lock.acquire()
             print colored.cyan("[%s] skunk block %d, diff %0.3f" % (get_timestamp(), block_height, sigt_difficulty))
+            lock.release()
             current_block = block_height
         time.sleep(timeout)
 
@@ -87,7 +97,9 @@ def t_getlastprice(timeout):
         except:
             last_trade_price = last_value
             if show_prompt:
+                lock.acquire()
                 print "Unable to get last trade data, using last known price"
+                lock.release()
             show_prompt = False
         time.sleep(timeout)
 
@@ -103,9 +115,14 @@ def t_displaystats_btc(timeout):
         if (btc_value > 0) and (btc_value != current_value):
             text = "[%s] Value[BTC]: %0.8f\tRate: %0.8f\tBTC/SIGT\t" % (get_timestamp(), btc_value, last_trade_price)
             if (btc_value >= current_value):
-                print colored.green("%s%s" % (text, "(+)"))
+                text = colored.green("%s%s" % (text, "(+)"))
             else:
-                print colored.red("%s%s" % (text, "(-)"))
+                text = colored.red("%s%s" % (text, "(-)"))
+
+            lock.acquire()
+            print text
+            lock.release()
+
             current_value = btc_value
         else:
             pass
@@ -129,10 +146,15 @@ def t_displaystats_php(timeout):
             text = "[%s] Value[PHP]: %0.2f\tRate: %0.2f\t\tPHP/SIGT\t" % (get_timestamp(), php_value, php_sigt)
 
             if (php_value >= current_value):
-                print colored.green("%s%s" % (text, "(+)"))
+                text = colored.green("%s%s" % (text, "(+)"))
 
             else:
-                print colored.red("%s%s" % (text, "(-)"))
+                text = colored.red("%s%s" % (text, "(-)"))
+
+            lock.acquire()
+            print text
+            lock.release()
+
             current_value = php_value
 
         else:
@@ -145,7 +167,9 @@ file_name = 'config.json'
 try:
     file_handle = open(file_name)
 except:
+    lock.acquire()
     print "Unable to open %s" % file_name
+    lock.release()
     quit()
 else:
     file_data = file_handle.read()
@@ -154,7 +178,9 @@ else:
 try:
     json_str = json.loads(file_data)
 except:
+    lock.acquire()
     print "Unable to load config, please check JSON"
+    lock.release()
     quit()
 
 print colored.white("[%s] Config files successfully loaded from %s" % (get_timestamp(), file_name))
@@ -200,13 +226,13 @@ try:
     tmon = 3
     thread.start_new_thread(t_get_bidprice, (9.0,))
 
-    # Call thread for displaying BTC stats, t=1.0s
+    # Call thread for displaying BTC stats
     tmon = 4
     thread.start_new_thread(t_displaystats_btc, (1.0,))
 
-    # Call thred for displaying PHP stats, t=1.01s to avoid overlapping with BTC stats
+    # Call thred for displaying PHP stats
     tmon = 5
-    thread.start_new_thread(t_displaystats_php, (1.01,))
+    thread.start_new_thread(t_displaystats_php, (1.0,))
 
 # Exception handling
 except:
@@ -220,5 +246,7 @@ time.sleep(5)
 while IS_ACTIVE:
     # Display SIGT balance every 5 minutes
     if sigt_bal:
+        lock.acquire()
         print colored.yellow("[%s] Value[SIGT]: %0.2f" % (get_timestamp(), sigt_bal))
+        lock.release()
     time.sleep(300)

@@ -35,7 +35,7 @@ signatum>wallet_address> 	Your Signatum Address
 
 ################################################################
 
-	Donataions are welcome :)
+	Donations are welcome :)
 
 	BTC	3NsLAxPHrCHmHC9YkLpd1sgCHLqW1ybXK6
 
