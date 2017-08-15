@@ -1,6 +1,7 @@
 {
     "miner":{
-        "bat_file":"start-supernova.bat"
+        "nicehash":"start-nicehash-sigt-ccminer.bat",
+        "pool":"start-pool-sigt-ccminer.bat"
     },
     "suprnova":{
         "api_key":"322d98e7430c8db0b1bfc8c93c66453b9b602aaaf31e6ad55ccb071df6b5c87d",

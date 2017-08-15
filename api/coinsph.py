@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/python
 # coinsphapi
 import requests
 import json
@@ -18,13 +18,14 @@ class CoinsPH(object):
             reply = '{}'
 
         bidprice = 0.0
+        expiresin = 0
 
-        try:    
+        try:
             reply = reply.text
             json_str = json.loads(reply)
             bidprice = json_str['market']['bid']
-            return float(bidprice)
+            expiresin = json_str['market']['expires_in_seconds']
+            return (float(bidprice),expiresin)
 
         except:
-            return -1
-
+            return (-1,-1)
